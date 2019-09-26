@@ -1,0 +1,254 @@
+openapi: 3.0.0
+info:
+  description: >-
+    Provides search capabilities at the claim level and predicts the credibility
+    of input statements by comparing them to claims/statements in a database of
+    fact-checked and news articles from both credible and non-credible
+    publishers.
+  version: "0.1.0"
+  title: Claim Search and Credibility Prediction
+  contact:
+    email: rdenaux@expertsystem.com
+  license:
+    name: Apache 2.0
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+    
+tags:
+  #- name: admins
+  #  description: Secured Admin-only calls
+  - name: developers
+    description: Operations available to regular developers
+    
+paths:
+  /claim/search:
+    get:
+      tags:
+        - developers
+      summary: finds similar claims or sentences in a claim database
+      operationId: searchClaim
+      description: Finding similar claims or sentences in the co-inform claim database
+      parameters:
+        - in: query
+          name: claim
+          description: >-
+            This should be an English sentence or claim. Multiple sentences are
+            not allowed.
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: keyword
+          description: One or more keywords to filter the found claims/sentences
+          schema:
+            type: string
+        - in: query
+          name: lang
+          description: Language(s) to match
+          schema:
+            type: string
+        - in: query
+          name: domain
+          description: url domains to match
+          schema:
+            type: string
+        - in: query
+          name: category
+          description: Cogito taxonomy category to match
+          schema:
+            type: string
+      responses:
+        '200':
+          description: array of related sentences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RelatedSentenceOrReview'
+                  resultsHeader:
+                    type: object
+                    properties:
+                      params:
+                        type: object
+                      QTime:
+                        type: number
+                        format: long
+                        description: Milliseconds spent producing the result
+        '400':
+          description: bad input parameter
+  /claim/predict/credibility:
+    get:
+      tags:
+        - developers
+      summary: analyses a claim to predict its credibility
+      operationId: predictClaimCredibility
+      description: >
+        Analyses the input claim and compares it to existing claims/statements
+        in the database. Based on the result, it produces a credibility score
+        with optional details explaining what the score is based on and linking
+        to similar claims.
+      parameters:
+        - in: query
+          name: claim
+          description: >-
+            required string. This should be a sentence or claim. If multiple
+            sentences are passed, this will result in multiple predictions for
+            the individual claims.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: array of claim credibility predictions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClaimCredibilityPrediction'
+        '400':
+          description: bad input parameter
+          
+servers:
+  - url: 'https://coinform.expertsystemcustomer.com/cc/api/v1'
+    description: ESI's coinform endpoint (ask for permission to gain access)
+
+components:
+  schemas:
+    ClaimCredibilityPrediction:
+      type: object
+      required:
+        - claim
+        - credibility
+        - confidence
+        - related_claims
+        - explanation
+      properties:
+        claim:
+          type: string
+          example: >-
+            More than 80 per cent of population growth in the UK in recent years
+            was down to immigration
+        credibility:
+          type: number
+          format: float
+          description: >-
+            Credibility estimation for the input claim. 
+            0.0 means not credible at all, 1.0 means fully credible.
+            You should also look at the confidence value and the explanation.
+          minimum: 0
+          maximum: 1
+          example: 0.5
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: >-
+            How confidence we are about the credibility score. E.g. if the input claim is unlike claims in the database, our confidence will be low. On the other hand, if we have an exact match in our database that has also been fact-checked by a reputable source, we will have high confidence.
+          example: 0.5
+        related_claims:
+          $ref: '#/components/schemas/RelatedClaims'
+        explanation:
+          type: string
+          description: >-
+            Human readable exaplanation of the credibility and confidence scores.
+            These reflect the strategies used by the service to come up with the scores. At the moment, we consider the following strategies.
+            1. fact-checked, When a fact-checked ClaimReview could be found with similarity under a specific threshold
+            2. credible-source, When the top similar match comes from a credible or reputable publisher. Example - Claim is very similar to a statement published by 'The Times', a credible publisher.
+            3. non-credible-source, When the top similar match(es) come from non-credible/reputable publishers. Example - Claim is very similar to a statement published by 'Breitbart', a publisher that is known for being biased
+          example: Claim is very similar to a claim fact-checked by FactCheckNI
+    RelatedClaims:
+      properties:
+        reviewed-claims:
+          type: array
+          items:
+            $ref: '#/components/schemas/RelatedClaimReview'
+        fact-checker-sentences:
+          type: array
+          items:
+            $ref: '#/components/schemas/RelatedSentence'
+        credible-pub-sentences:
+          type: array
+          items:
+            $ref: '#/components/schemas/RelatedSentence'
+        non-credible-pub-sentences:
+          type: array
+          items:
+            $ref: '#/components/schemas/RelatedSentence'
+    RelatedSentenceOrReview:
+      oneOf:
+        - $ref: '#/components/schemas/RelatedSentence'
+        - $ref: '#/components/schemas/RelatedClaimReview'
+    RelatedClaimReview:
+      required:
+        - claimReviewed
+        - similarity
+      properties:
+        claimReviewed:
+          type: string
+          example: >-
+            We are contributing to the national government in excess of KSh49
+            billion in taxes annually.
+        similarity:
+          type: number
+          format: float
+          example: 0.8
+        fact-checker:
+          type: string
+          example: Africa Check
+        published_date:
+          type: string
+          format: date-time
+          example: '2019-04-24T08:55:51.000Z'
+        url:
+          type: string
+          format: uri
+          example: 'https://africacheck.org/…on-a-year-in-import-tax/'
+        altName:
+          type: string
+          example: Incorrect
+    RelatedSentence:
+      required:
+        - sentence
+        - domain
+        - similarity
+      properties:
+        sentence:
+          type: string
+          example: >-
+            Migration Watch UK estimates that about 3.1 million migrants arrived
+            and a further 2.3 million were born in Britain between 2001 and 2016
+        similarity:
+          type: number
+          format: float
+          example: 0.8
+        doc_url:
+          type: string
+          format: uri
+          example: >-
+            https://www.expressen.se/nyheter/val-2018/klimatet-huvudfragan-i-forsta-partiledardebatten
+        coinform_collection:
+          type: string
+          example: pilot-sv
+        lang_orig:
+          type: string
+          example: de
+        published_date:
+          type: string
+          format: date-time
+          example: '2019-05-07T15:40:46.791Z'
+        claimspot_score:
+          type: number
+          format: float
+          example: 0.5
+        domain:
+          type: string
+          example: africacheck.org
+        domain_credibility:
+          type: number
+          format: float
+          example: 0.8
