@@ -20,6 +20,38 @@ tags:
     description: Operations available to regular developers
     
 paths:
+  /tweet/claim/credibility:
+    post:
+      tags:
+        - developers
+      summary: Analyse claims made (or linked to) in one or more tweets and generate a credibility report.
+      operationId: tweetCredibility
+      requestBody:
+        description: Provide information about the tweets to analyse and an optional callback url
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TweetClaimCredRequest'
+      responses:
+        '200':
+          description: >-
+            Request accepted. If request:
+            - contained a callback URL, it responds immediately accepting the requets. 
+            - had no callback URL, it responds *synchronously* and sends the tweet credibility report  
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/CallbackRequestAccept'
+                  - type: array
+                    items: 
+                      $ref: '#/components/schemas/TweetCredibilityPrediction'
+        '400':
+          description: Bad request. Not enough information to analyse tweets or bad callback URL.
+        '5XX':
+          description: Unexpected error on the server.
+        
   /claim/search:
     get:
       tags:
@@ -118,6 +150,111 @@ servers:
 
 components:
   schemas:
+    CallbackRequestAccept:
+      type: object
+      required:
+        - msg
+      properties:
+        msg:
+          type: string
+          description: >-
+            a textual message stating that the callback request has been accepted.
+          example: "Request accepted, will analyse the 4 requested tweets and send results to https://api.coinform.eu/module/response/"
+    Tweet:
+      type: object
+      required:
+        - tweet_id
+      properties:
+        tweet_id:
+          type: integer
+          description: >-
+            A Twitter status id to analyse
+          example: 1178504740558163968
+        content:
+          type: string
+          description: >-
+            The textual content of the tweet (Optional)
+          example: >-
+            Hundreds of scientists, engineers tell U.N.: 'There is no climate emergency'  http://bit.ly/2onUUU1
+        linked_urls: 
+          type: array
+          description: >-
+            Any (resolved?) urls linked by the tweet
+          items:
+            type: string
+            description: >-
+              A URL
+            example: "https://www.washingtontimes.com/news/2019/sep/29/scientists-tell-un-global-climate-summit-no-emerge/"
+    TweetClaimCredRequest:
+      type: object
+      required:
+        - tweets
+      properties:
+        tweets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tweet'
+        callback_url:
+          type: string
+          description: >-
+            Optional url. When included, the request will be handled in an asynchronous way as agreed within the co-inform project.
+          example: "https://api.coinform.eu/module/response/abcdefg"
+    TweetCredibilityPrediction:
+      type: object
+      required:
+        - tweet_id
+        - credibility
+        - confidence
+        - explanation
+      properties:
+        tweet_id:
+          type: integer
+          example: 1178504740558163968
+        credibility:
+          type: number
+          format: float
+          description: >-
+            Credibility estimation for the input tweet. 
+            -1.0 means not credible at all, 1.0 means fully credible.
+            You should also look at the confidence value and the explanation.
+          minimum: -1.0
+          maximum: 1.0
+          example: 0.5
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: >-
+            How confidence we are about the credibility score. E.g. if the input tweet does not contain text or the text is unlike claims in the database, our confidence will be low. On the other hand, if we have an exact match in our database that has also been fact-checked by a reputable source, we will have high confidence.
+          example: 0.5
+        explanation:
+          type: string
+          description: >-
+            Human readable exaplanation of the credibility and confidence scores.
+            These reflect the strategies used by the service to come up with the scores. At the moment, we consider the following strategies.
+            1. find sentenes in the text of the tweet and assess their credibility using the `claim credibility` service.
+            2. resolve any urls contained in the tweet and if it points to websites containing text, extract claims made in those texts and assess their credibility.
+          example: Tweet contains claims which are very similar to a claim fact-checked by FactCheckNI
+        sentences_in_tweet:
+          type: array
+          description: >-
+            List of claim credibility assessments for all the sentences occurring in the tweet. If the tweet does not contain sentences/claims, this will not be included in the response.
+          items:
+            $ref: '#/components/schemas/ClaimCredibilityPrediction'
+        sentences_linked:
+          type: array
+          description: >-
+            List of objects where each object represents a claim made in a linked document. Of course, if the tweet does not contain links, or the links do not contain text to analyse, we do not return this property.
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+                description: >-
+                  The (resolved) url linked by the input tweet containing the sentence that was analysed.
+              sentence:
+                $ref: '#/components/schemas/ClaimCredibilityPrediction'
     ClaimCredibilityPrediction:
       type: object
       required:
@@ -133,14 +270,26 @@ components:
             More than 80 per cent of population growth in the UK in recent years
             was down to immigration
         credibility:
+          $ref: "#/components/schemas/CredibilityAssessment"
+        related_claims:
+          $ref: '#/components/schemas/RelatedClaims'
+    CredibilityAssessment:
+      description: >-
+        Encapsulates a credibility assessment of an encompassing object in terms of a value in range [-1,1] and a confidence in range [0, 1] with optional explanation and source.
+      type: object
+      required:
+        - value
+        - confidence
+      properties:
+        value:
           type: number
           format: float
           description: >-
             Credibility estimation for the input claim. 
-            0.0 means not credible at all, 1.0 means fully credible.
+            -1.0 means not credible at all, 1.0 means fully credible.
             You should also look at the confidence value and the explanation.
-          minimum: 0
-          maximum: 1
+          minimum: -1.0
+          maximum: 1.0
           example: 0.5
         confidence:
           type: number
@@ -150,17 +299,17 @@ components:
           description: >-
             How confidence we are about the credibility score. E.g. if the input claim is unlike claims in the database, our confidence will be low. On the other hand, if we have an exact match in our database that has also been fact-checked by a reputable source, we will have high confidence.
           example: 0.5
-        related_claims:
-          $ref: '#/components/schemas/RelatedClaims'
         explanation:
           type: string
           description: >-
-            Human readable exaplanation of the credibility and confidence scores.
-            These reflect the strategies used by the service to come up with the scores. At the moment, we consider the following strategies.
-            1. fact-checked, When a fact-checked ClaimReview could be found with similarity under a specific threshold
-            2. credible-source, When the top similar match comes from a credible or reputable publisher. Example - Claim is very similar to a statement published by 'The Times', a credible publisher.
-            3. non-credible-source, When the top similar match(es) come from non-credible/reputable publishers. Example - Claim is very similar to a statement published by 'Breitbart', a publisher that is known for being biased
-          example: Claim is very similar to a claim fact-checked by FactCheckNI
+            Human readable exaplanation of the credibility assessment value and confidence scores.
+            These reflect the strategies used by the service to come up with the scores.
+          example: Claim is very similar to (claim) that was published in a site (site) that is unreliable
+        source:
+          type: string
+          description: >-
+            Short description of the evidence taken into account to come up with this credibility assessment
+          example: Credibility of related claims (3)
     RelatedClaims:
       properties:
         reviewed-claims:
@@ -184,6 +333,8 @@ components:
         - $ref: '#/components/schemas/RelatedSentence'
         - $ref: '#/components/schemas/RelatedClaimReview'
     RelatedClaimReview:
+      description: >-
+        Describes a claimReview found on-line that is related (usually semantically similar) to an encapsulating claim/sentence.
       required:
         - claimReviewed
         - similarity
@@ -197,8 +348,17 @@ components:
           type: number
           format: float
           example: 0.8
+        claimReview_credibility_rating:
+          $ref: '#/components/schemas/CredibilityAssessment'
+        domain:
+          type: string
+          example: www.faktyoxla.info
+        domain_credibility:
+          $ref: '#/components/schemas/CredibilityAssessment'
         fact-checker:
           type: string
+          description: >- 
+            Name or url of the fact checking organisation that published the claimReview
           example: Africa Check
         published_date:
           type: string
@@ -211,7 +371,14 @@ components:
         altName:
           type: string
           example: Incorrect
+        claimReview:
+          type: object
+          description: >-
+            When possible, we try to provide a json-ld description of the matched claim review.
     RelatedSentence:
+      description: >-
+        Describes a sentence found in an on-line document that is related (usually semantically similar) to an encapsulating claim/sentence.
+      type: object
       required:
         - sentence
         - domain
@@ -219,16 +386,27 @@ components:
       properties:
         sentence:
           type: string
+          description: >-
+            The sentence itself (note that it may be a translation from a sentence)
           example: >-
             Migration Watch UK estimates that about 3.1 million migrants arrived
             and a further 2.3 million were born in Britain between 2001 and 2016
         similarity:
           type: number
           format: float
+          description: >-
+            We aim (but no promises yet) to keep the values between 0 and 1, where 0 means not related at all and 1 means "semantically similar". However calculating accurate semantic similarity is still an active research topic.
           example: 0.8
+        domain:
+          type: string
+          description: >-
+            Site where the sentence was published (other sites may also have published the same sentence)
+          example: africacheck.org
         doc_url:
           type: string
           format: uri
+          description: >-
+            URL where the sentence appears (possibly in the original language if the sentence was translated)
           example: >-
             https://www.expressen.se/nyheter/val-2018/klimatet-huvudfragan-i-forsta-partiledardebatten
         coinform_collection:
@@ -245,10 +423,5 @@ components:
           type: number
           format: float
           example: 0.5
-        domain:
-          type: string
-          example: africacheck.org
         domain_credibility:
-          type: number
-          format: float
-          example: 0.8
+          $ref: '#/components/schemas/CredibilityAssessment'
