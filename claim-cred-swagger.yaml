@@ -20,6 +20,570 @@ tags:
     description: Operations available to regular developers
     
 paths:
+  /collections:
+    get:
+      tags:
+        - developers
+      summary: Returns collections ids that must be used in order to search documents.
+      operationId: collections
+      responses:
+        '200':
+          description: get collections that are stored in the database
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Collection'
+  /url/collect:
+    post:
+      tags:
+        - planned
+      summary: On-the-fly crawling and analysis of documents based on their URLs
+      operationId: urlCollect
+      parameters:
+      - in: query
+        name: url
+        description: URL to document to crawl and analyse. Multiple urls can be specified in a single POST request.
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: collection
+        description: Name of the collection where the collected (and analysed) document should be stored. This should be one of the names as returned by the `/collections` service. If not specified, the server will assume a standard collection to use.
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: >-
+            Responds *synchronously* and returns an object for each posted `url`. If there were errors resolving the URLs, extracting text or analysing the extracted content before adding to the database, this is reported as an error. Similarly, if after a timeout, the url has not been crawled/analysed, this is reported as a message. If the URL has been correctly crawled and analysed, the analysis is returned (following the same basic schema as a `/search` response.
+          content:
+            application/json:
+              schema: 
+                $ref: '#/components/schemas/URLCollectResponse'
+        '400':
+          description: Bad request due to incorrect target `collection`. If input URL cannot be resolved, this will be specified as part of the '200' response.
+        '5XX':
+          description: Unexpected error on the server.  
+  /search:
+    get:
+      tags:
+        - developers
+      summary: Returns documents matching a query string. 
+      operationId: search
+      description: By passing in the appropriate options, you can search for available documents in the system or even filter them by facets. Every available query param has a q_or version to add or queries, following the format -> q_<field_name> and q_or_<field_name>.
+      parameters:
+      - in: query
+        name: collection
+        description: Collection of documents in the database.
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: q
+        description: Basic query field that asks for the content field (content of the web page) in the database. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned. For example -> q=(Sun and Moon)
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: q_or
+        description: Query param that asks for the content field and can be used to append logical ors to the actual query.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: facet.field
+        description: Query param that asks for a field in particular. This param returns an additional json in the response, called "facet_counts". This json will show all the values used for the field used in the query.
+          For this type of query there is no special treatment.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: start
+        description: Query param modifies the number of documents returned. Instead of showing the documents from index 0, the count will start in the number pointed by this parameter.
+        schema:
+          type: integer
+        required: false
+      - in: query
+        name: rows
+        description: Query param modifies the number of documents returned. Instead of showing the first 10 documents, it will show `rows` number of documents.
+        schema:
+          type: integer
+        required: false
+      - in: query
+        name: q_content_orig
+        description: Query param that asks for the content_orig field (content of the web page in the original language when it is not written in English). If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_or_orig
+        description: Query param that asks for the content_orig field and can be used to append logical ors to the actual query.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_lang_orig
+        description: Query param that asks for the lang_orig field. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_content
+        description: Query param that asks for the content field (explicitly declared). If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_categories
+        description: Query param that asks for taxonomies fields and can be used to append logical ands to the actual query. Taxonomies group general concepts in the documents, and are used to classify the data. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of field, quotes should always be added and try to search for a specific node or group in the taxonomy. For example -> q_categories:"/INTELLIGENCE_TAX/18000000/18021000"
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_main_elements
+        description: Query param that asks for main_elements fields and can be used to append logical ands to the actual query. If this parameter is specified more than one time, the system will generate a query with logical ands. 
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_id
+        description: Query param that asks for the id field. This field specifies the web page url. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_digest
+        description: Query param that asks for the digest field. This field specifies the md5 for a particular document. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_url
+        description: Query param that asks for the url field. This field specifies the web page url aswell, but has a different treatment in comparison to q_id. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query the url must be inside quotes or with bars escaped. For example q_url->"https://www.snopes.com/fact-check/" or q_url->https\:\/\/www.snopes.com\/fact-check\/
+          In case of escaping the url, the result returns similar urls. In case of passing it with quotes, it returns only the documents that do an exact match with that url.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_source
+        description: Query param that asks for the source field. This field tells how the data was collected (via Twitter, web crawling...). If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_source_id
+        description: Query param that asks for source_id and can be used to append logical ands to the actual query. If this parameter is specified more than one time, the system will generate a query with logical ands. 
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_title
+        description: Query param that asks for the title field. The field stores the title of the web page or news crawled. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_claim
+        description: Query param that asks for claims field. The request will return the claim highlight in the text if hl is set to "true", if not, it will return just the taxonomy for the facts found in the text. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of field, quotes should always be added and try to search for a specific node or group in the taxonomy. For example -> q_claim:"/INTELLIGENCE_TAX/18000000/18021000"
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_status
+        description: Query param that asks for status field.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+          The values for this field are "running", "done", "failed", "empty".
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_lastModified
+        description: Query param that asks for a specific date in the lastModified field. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query the date must follow a date format and must be quoted or escaped.
+          Both of this will return the same output
+            q_lastModified:2017-10-06T09\:41\:13Z
+            q_lastModified:"2017-10-06T09:41:13Z"
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_last_update
+        description: Query param that asks for a specific date in the last_update field. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query the date must follow a date format and must be quoted or escaped.
+          Both of this will return the same output
+            q_last_update:2017-10-06T09\:41\:13Z
+            q_last_update:"2017-10-06T09:41:13Z"
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_publishedDate
+        description: Query param that asks for a specific date in the publishedDate field. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          For this type of query the date must follow a date format and must be quoted or escaped.
+          Both of this will return the same output
+            q_publishedDate:2017-10-06T09\:41\:13Z
+            q_publishedDate:"2017-10-06T09:41:13Z"
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_airports
+        description: Query param that asks for the entity field airports. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_biological_agents
+        description: Query param that asks for the entity field biological_agents. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_buildings
+        description: Query param that asks for the entity field buildings. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_chemical_agents
+        description: Query param that asks for the entity field chemical_agents. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_criminal_organisations
+        description: Query param that asks for the entity field criminal_organisations. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_critical_infrastructures
+        description: Query param that asks for the entity field critical_infrastructures. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_cyber_attacks
+        description: Query param that asks for the entity field cyber_attacks. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_cyber_illegal
+        description: Query param that asks for the entity field cyber_illegal. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_ew_devices
+        description: Query param that asks for the entity field ew_devices. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_hash
+        description: Query param that asks for the entity field hash. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_illicit_drugs
+        description: Query param that asks for the entity field illicit_drugs. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_influential_people
+        description: Query param that asks for the entity field influential_people. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_intelligence_agencies
+        description: Query param that asks for the entity field intelligence_agencies. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_ip
+        description: Query param that asks for the entity field ip. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_key_company_executives
+        description: Query param that asks for the entity field key_company_executives. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_medical_conditions
+        description: Query param that asks for the entity field medical_conditions. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_medical_treatments
+        description: Query param that asks for the entity field medical_treatments. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_malware
+        description: Query param that asks for the entity field malware. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_military_actions
+        description: Query param that asks for the entity field military_actions. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_military_equipment
+        description: Query param that asks for the entity field military_equipment. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_military_facilities
+        description: Query param that asks for the entity field military_facilities. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_military_forces
+        description: Query param that asks for the entity field military_forces. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_natural_disasters
+        description: Query param that asks for the entity field natural_disasters. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_non_governative_organisations
+        description: Query param that asks for the entity field non_governative_organisations. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_organizations
+        description: Query param that asks for the entity field organizations. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_people
+        description: Query param that asks for the entity field people. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_places
+        description: Query param that asks for the entity field places. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_points_of_interest
+        description: Query param that asks for the entity field points_of_interest. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_public_leading_companies
+        description: Query param that asks for the entity field public_leading_companies. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_security_tools
+        description: Query param that asks for the entity field security_tools. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_social_tags
+        description: Query param that asks for the entity field social_tags. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_terrorist_organisations
+        description: Query param that asks for the entity field terrorist_organisations. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_us_senators
+        description: Query param that asks for the entity field us_senators. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_vehicles_cars
+        description: Query param that asks for the entity field vehicles_cars. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_vechicle_motorbikes
+        description: Query param that asks for the entity field vechicle_motorbikes. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_vulnerabilities
+        description: Query param that asks for the entity field vulnerabilities. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_wanted_for_terrorism
+        description: Query param that asks for the entity field wanted_for_terrorism. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_weapons_of_mass_destruction
+        description: Query param that asks for the entity field weapons_of_mass_destruction. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_world_leaders
+        description: Query param that asks for the entity field world_leaders. If this parameter is specified more than one time, the system will generate a query with logical ands.
+          The query string for this field should be a exact match, so quotes should be added or at least * expansors. If no expansors are added, the application will add them automatically.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_schema_org_claimReviewed
+        description: Query param that asks for the schema_org_claimReviewed field.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_schema_org_cr_author_name
+        description: Query param that asks for the schema_org_cr_author_name field.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_schema_org_cr_author_url
+        description: Query param that asks for the schema_org_cr_author_name field.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_schema_org_cr_author_n3
+        description: Query param that asks for the schema_org_cr_author_n3 field.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_schema_org_rating_altName
+        description: Query param that asks for the schema_org_rating_altName field.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_schema_org_rating_image
+        description: Query param that asks for the schema_org_rating_image field.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_schema_org_cr_url
+        description: Query param that asks for the schema_cr_url field.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      - in: query
+        name: q_schema_org_itemReviewed_n3
+        description: Query param that asks for the schema_org_itemReviewed_n3 field.
+          For this type of query there is no special treatment, but it is recommended to use parenthesis if the query has spaces to reduce the number of documents returned.
+        schema:
+          type: string
+        required: false
+      responses:
+        '200':
+          description: get all documents or get documents filtered by several test fields.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: bad input parameter, for example, making a request for a non-existing collection or field.
+          
   /tweet/claim/credibility:
     post:
       tags:
@@ -150,6 +714,404 @@ servers:
 
 components:
   schemas:
+    Collection:
+      type: object
+      required:
+        - name
+        - description
+      properties: 
+        name:
+          type: string
+          example: "pilot-se"
+        description:
+          type: string
+          example: "Content from fact-checking sites"
+    FacetCounts:
+      type: object
+      required:
+        - facet_fields
+      properties:
+        facet_fields:
+          $ref: '#/components/schemas/FacetFields'
+    FacetFields:
+      type: object
+      properties:
+        #Here we should include any field
+        buildings:
+          type: array
+          items:
+            type: string
+    ResponseHeader:
+      type: object
+      required:
+        - QTime
+        - params
+        - status
+      properties:
+        QTime:
+          type: integer
+        params:
+          $ref: '#/components/schemas/Params' 
+        status:
+          type: integer
+    Params:
+      type: object
+      required:
+      - collection
+      - q
+      properties:
+        collection:
+          type: string
+        q:
+          type: string
+    Response:
+      type: object
+      required:
+      - docs
+      - numFound
+      - start
+      properties:
+        docs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+        numFound:
+          type: integer
+        start:
+          type: integer
+        
+    Document:
+      type: object
+      required:
+        - content
+        - contentLength
+        - digest
+        - id
+        - lang
+        - lang_orig
+        - lastModified
+        - last_update
+        - main_elements
+        - publishedDate
+        - size
+        - source
+        - source_id
+        - status
+        - title
+        - url
+      properties:
+        categories:
+          type: array
+          items:
+            type: string
+        claims:
+          type: array
+          items:
+            type: string
+        content:
+          type: string
+        contentLength:
+          type: string
+        collection:
+          type: string
+        digest:
+          type: string
+        geo:
+          type: array
+          items:
+            type: string
+        id:
+          type: string
+        lang:
+          type: string
+        lang_orig:
+          type: string
+        lastModified:
+          type: string
+        last_update:
+          type: string
+        main_elements:
+          type: array
+          items:
+            type: string
+        publishedDate:
+          type: string
+          format: date-time
+        retrieved_on:
+          type: string
+          format: date-time
+        sentiments:
+          type: array
+          items:
+            type: string
+        size:
+          type: integer
+        source:
+          type: string
+        source_id:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+        structured_data:
+          type: array
+          items:
+            type: string
+        title:
+          type: string
+        url:
+          type: string
+        airports:
+          type: array
+          items:
+            type: string
+        biological_agents:
+          type: array
+          items:
+            type: string
+        buildings:
+          type: array
+          items:
+            type: string
+        chemical_agents:
+          type: array
+          items:
+            type: string
+        criminal_organisations:
+          type: array
+          items:
+            type: string
+        critical_infrastructures:
+          type: array
+          items:
+            type: string
+        cyber_attacks:
+          type: array
+          items:
+            type: string
+        cyber_illegal:
+          type: array
+          items:
+            type: string
+        ew_devices:
+          type: array
+          items:
+            type: string
+        hash:
+          type: array
+          items:
+            type: string
+        illicit_drugs:
+          type: array
+          items:
+            type: string
+        influential_people:
+          type: array
+          items:
+            type: string
+        intelligence_agencies:
+          type: array
+          items:
+            type: string
+        ip:
+          type: array
+          items:
+            type: string
+        key_company_executives:
+          type: array
+          items:
+            type: string
+        medical_conditions:
+          type: array
+          items:
+            type: string
+        medical_treatments:
+          type: array
+          items:
+            type: string
+        malware:
+          type: array
+          items:
+            type: string
+        military_actions:
+          type: array
+          items:
+            type: string
+        military_equipment:
+          type: array
+          items:
+            type: string
+        military_facilities:
+          type: array
+          items:
+            type: string
+        military_forces:
+          type: array
+          items:
+            type: string
+        natural_disasters:
+          type: array
+          items:
+            type: string
+        non_governative_organisations:
+          type: array
+          items:
+            type: string
+        organizations:
+          type: array
+          items:
+            type: string
+        people:
+          type: array
+          items:
+            type: string
+        places:
+          type: array
+          items:
+            type: string
+        points_of_interest:
+          type: array
+          items:
+            type: string
+        public_leading_companies:
+          type: array
+          items:
+            type: string
+        security_tools:
+          type: array
+          items:
+            type: string
+        social_tags:
+          type: array
+          items:
+            type: string
+        terrorist_organisations:
+          type: array
+          items:
+            type: string
+        us_senators:
+          type: array
+          items:
+            type: string
+        vehicles_cars:
+          type: array
+          items:
+            type: string
+        vechicle_motorbikes:
+          type: array
+          items:
+            type: string
+        vulnerabilities:
+          type: array
+          items:
+            type: string
+        wanted_for_terrorism:
+          type: array
+          items:
+            type: string
+        weapons_of_mass_destruction:
+          type: array
+          items:
+            type: string
+        world_leaders:
+          type: array
+          items:
+            type: string
+        schema_org_claimReviewed:
+          type: array
+          items:
+            type: string
+        schema_org_cr_author_n3:
+          type: array
+          items:
+            type: string
+        schema_org_cr_author_name:
+          type: array
+          items:
+            type: string
+        schema_org_cr_author_url:
+          type: array
+          items:
+            type: string
+        schema_org_cr_datePublished:
+          type: array
+          items:
+            type: string
+        schema_org_cr_itemReviewed_n3:
+          type: array
+          items:
+            type: string
+        schema_org_cr_n3:
+          type: array
+          items:
+            type: string
+        schema_org_cr_rating_altName:
+          type: array
+          items:
+            type: string
+        schema_org_cr_rating_best:
+          type: array
+          items:
+            type: string
+        schema_org_cr_rating_value:
+          type: array
+          items:
+            type: string
+        schema_org_cr_rating_worst:
+          type: array
+          items:
+            type: string
+        schema_org_cr_url:
+          type: array
+          items:
+            type: string
+
+    SearchResponse:
+      type: object
+      required:
+        - facet_counts
+        - response
+        - responseHeader
+      properties:
+        facet_counts:
+          $ref: '#/components/schemas/FacetCounts'
+        response:
+          $ref: '#/components/schemas/Response'
+        responseHeader:
+          $ref: '#/components/schemas/ResponseHeader'
+          
+    URLCollectionResult:
+      type: object
+      description: >-
+        Describes the result of an on-the-fly collection of a requested URL. The pipeline is broadly: (i) resolve input url, (ii) extract text and metadata of the resolved document, (iii) semantically analyse the extracted text and (iv) store the analysed document in a collection in the database. This object should give you an idea of whether this process was successful or not. In particular, if the `semanticAnalysis` field is populated, this indicates that the URL was successfully analysed. Any issues will be reported in the `issues` field. 
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          description: The original url that was requested to be collected
+        resolvedUrl:
+          type: string
+          description: The resolved url which eventually returned a valid file (HTML or otherwise). This may be the same as the original `url`
+        semanticAnalysis:
+          $ref: '#/components/schemas/Document'
+        issues:
+          type: array
+          items:
+            type: string
+          description: list of errors or warning encountered during collection/analysis of the input `url`.
+          
+    URLCollectResponse:
+      type: object
+      required:
+        - urls
+      properties:
+        urls:
+          type: array
+          items: 
+            $ref: '#/components/schemas/URLCollectionResult'
+            
     CallbackRequestAccept:
       type: object
       required:
