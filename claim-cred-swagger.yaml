@@ -65,7 +65,51 @@ paths:
         '400':
           description: Bad request due to incorrect target `collection`. If input URL cannot be resolved, this will be specified as part of the '200' response.
         '5XX':
-          description: Unexpected error on the server.  
+          description: Unexpected error on the server.
+  /user/accuracy-review:
+    post:
+      tags:
+        - planned
+      summary: POST a new accuracy review
+      operationId: postUserAccuracyReview
+      requestBody:
+        description: Information about the user rating. Note that co-inform users can rate different items a tweet, a website, an person, an article, a sentence within a tweet/article or even a credibility rating made by the system.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserReview'
+      responses:
+        '200':
+          description: >-
+            Responds *synchronously* and returns the UserReview object as it was stored in the DB. This will typically be the same as the posted object, with some slight modifications and additions. For example, some fields may be normalised (e.g. whitespaces removed), other fields may be added with default values.
+          content:
+            application/json:
+              schema: 
+                $ref: '#/components/schemas/UserReviewResponse'
+        '400':
+          description: Bad request, this will be accompanied by a list of  validation errors.
+        '5XX':
+          description: Unexpected error on the server.
+    get:
+      tags:
+        - planned
+      summary: GET existing user accuracy reviews
+      operationId: getUserAccuracyReviews
+      description: Find existing user accuracy reviews. TODO specify search parameters to filter by user, date, itemReviewed type, itemReviewed url, and/or ratingValue.
+      parameters:
+        - in: query
+          name: ratingValue
+          schema:
+            type: string
+      responses:
+        '200':
+          description: >-
+            Returns a list of matching user ratings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserReviewResponse'
   /search:
     get:
       tags:
@@ -1067,6 +1111,158 @@ components:
           items:
             type: string
 
+    UserReviewResponse:
+      type: object
+      required:
+        - facet_counts
+        - response
+        - responseHeader
+      properties:
+        facet_counts:
+          $ref: '#/components/schemas/FacetCounts'
+        response:
+          $ref: '#/components/schemas/UReviewResponse'
+        responseHeader:
+          $ref: '#/components/schemas/ResponseHeader'
+          
+    UReviewResponse:
+      type: object
+      required:
+      - docs
+      - numFound
+      - start
+      properties:
+        docs:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserReview'
+        numFound:
+          type: integer
+        start:
+          type: integer
+
+    CoinformUser:
+      type: object
+      required:
+      - context
+      - type
+      properties:
+        context:
+          type: string
+          enum: ["http://coinform.eu"]
+        type:
+          type: string
+          enum: [CoinformUser]
+        url:
+          type: string
+          description: Either url or identifier are required
+          example: http://coinform.eu/users/dtrump
+        identifier:
+          type: string
+          description: Either url or identifier are required
+          example: dtrump
+
+    WebSite:
+      type: object
+      required:
+      - context
+      - type
+      - url
+      properties:
+        context:
+          type: string
+          enum: ["http://schema.org"]
+        type:
+          type: string
+          example: WebSite
+        url:
+          type: string
+          example: https://en.wikipedia.org/wiki/Mean_absolute_error
+
+    AccuracyRating:
+      type: object
+      required:
+      - type
+      - ratingValue
+      properties:
+        context:
+          type: string
+        type:
+          type: string
+          enum: [CoinformAccuracyRating]
+        ratingValue:
+          type: string
+          enum: [accurate, accurate_with_considerations, unsubstantiated, inaccurate_with_considerations, inaccurate]
+        reviewAspect:
+          type: string
+          enum: [accuracy]
+
+    ItemRef:
+      type: object
+      description: >-
+        A reference to some item. This can be a user, website, article, tweet, sentence, co-inform credibility review, etc. As long as we have a type and url, we should be able to resolve this item.
+      required:
+      - type
+      - url
+      properties:
+        context:
+          type: string
+          enum: ["http://schema.org", "http://coinform.eu"]
+        type:
+          type: string
+          example: Sentence
+        url:
+          type: string
+          example: http://coinform.eu/sentence?text=vaccines cause autism
+      
+    UserReview:
+      type: object
+      required:
+        - author
+        - text
+        - name
+        - supportingItem
+        - reviewAspect 
+        - reviewRating
+        - itemReviewed
+        - dateCreated
+        - requestFactCheck
+      properties:
+        context:
+          type: string
+          enum: ["http://schema.org", "http://coinform.eu"]
+        type:
+          type: string
+          enum: [CoinformUserReview]
+        url:
+          type: string
+          description: Required after insert. Serves as a unique identifier for this UserReview. It will have the schema http://coinform.eu/user-ratings/<user_id>/<YYYYMMTddmmss>.
+          example: http://coinform.eu/dtrump/20200213T150605
+        author:
+          $ref: '#/components/schemas/CoinformUser'
+        text:
+          type: string
+          example: The Tweet/sentence/claim/article/credibility is wrong, as the supporting/refuting website shows  
+        name:
+          type: string
+        supportingItem:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebSite'
+          description: We support multiple supporting items
+        reviewAspect:
+          type: string
+          enum: [accuracy]
+        reviewRating:
+          $ref: '#/components/schemas/AccuracyRating'
+        itemReviewed:
+          $ref: '#/components/schemas/ItemRef'
+        dateCreated:
+          type: string
+          format: date-time
+        requestFactCheck:
+          type: boolean
+          
     SearchResponse:
       type: object
       required:
