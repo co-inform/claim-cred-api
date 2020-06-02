@@ -5,7 +5,7 @@ info:
     of input statements by comparing them to claims/statements in a database of
     fact-checked and news articles from both credible and non-credible
     publishers.
-  version: "0.1.0"
+  version: "0.1.1"
   title: Claim Search and Credibility Prediction
   contact:
     email: rdenaux@expertsystem.com
@@ -18,6 +18,8 @@ tags:
   #  description: Secured Admin-only calls
   - name: developers
     description: Operations available to regular developers
+  - name: planned
+    description: Proposed endpoints
     
 paths:
   /collections:
@@ -96,12 +98,29 @@ paths:
         - planned
       summary: GET existing user accuracy reviews
       operationId: getUserAccuracyReviews
-      description: Find existing user accuracy reviews. TODO specify search parameters to filter by user, date, itemReviewed type, itemReviewed url, and/or ratingValue.
+      description: Find existing user accuracy reviews.
       parameters:
         - in: query
           name: ratingValue
           schema:
             type: string
+          description: return only reviews matching this ratingValue
+        - in: query
+          name: factCheckRequested
+          schema:
+            type: string
+          examples:
+            star:
+              value: "*"
+              summary: same as true
+            true:
+              value: true
+              summary: returns reviews with recorded factcheck requests
+            date:
+              value: 2020-03-10T08:39:32.806Z
+              summary: returns reviews with a recorded factcheck request after this date
+          description: >-
+            return only reviews for which a request to a factchecker was recorded. If the value is a date, it must be an ISO datetime. See the example.
       responses:
         '200':
           description: >-
@@ -110,6 +129,120 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserReviewResponse'
+  /factchecker/recordRequest:
+    post:
+      tags:
+        - planned
+      summary: POST that a factcheck was requested from some factchecker
+      operationId: postFactcheckerRecordRequest
+      requestBody:
+        description: Information about the fact-checker(s) for which a fact-check was requested and the item to review
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                factcheckers:
+                  type: array
+                  description: >-
+                    A list of fact-checker organizations that were notified
+                  items:
+                    $ref: '#/components/schemas/Organization'
+                itemToReview:
+                  $ref: '#/components/schemas/ItemRef'
+            examples:
+              soma:
+                summary: Sent a tweet to SOMA 
+                value:
+                  factcheckers:
+                    - type: Organization
+                      name: Truly-media
+                      url: "http://truly.media"
+                  itemToReview:
+                    type: SocialMediaPost
+                    url: https://twitter.com/realDonaldTrump/status/1181172459325800448
+      responses:
+        '200':
+          description: >-
+            Responds *synchronously* and returns a summary of the changes in the DB.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Message about changes in the DB
+              examples:
+                ok:
+                  value:
+                    message: >-
+                      Updated 2 UserReviews that had requested a review for https://twitter.com/realDonaldTrump/status/1181172459325800448
+        '400':
+          description: Bad request, this will be accompanied by a list of  validation errors.
+        '5XX':
+          description: Unexpected error on the server.
+
+                
+  /factchecker/review:
+    post:
+      tags:
+        - planned
+      summary: POST a new accuracy review by a 3rd party factchecker
+      operationId: postFactcheckerAccuracyReview
+      requestBody:
+        description: Information about the fact-checker rating.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Review'
+            examples:
+              somaReview:
+                summary: Submit a SOMA review
+                value:
+                  context: http://schema.org
+                  type: Review
+                  url: http://truly.media/path/to/resource/for/this/review
+                  author:
+                    type: Organization
+                    url: http://truly.media
+                    name: Truly-media
+                  text: >-
+                    The Tweet is inaccurate because reasons
+                  name: inaccurate
+                  reviewAspect: accuracy
+                  reviewRating:
+                    context: http://schema.org
+                    type: Rating
+                    ratingValue: inaccurate
+                    reviewAspect: accuracy
+                    reviewExplanation: >-
+                      The Tweet is inaccurate because reasons
+                  itemReviewed:
+                    type: SocialMediaPost
+                    url: https://twitter.com/realDonaldTrump/status/1181172459325800448
+                  dateCreated: "2020-05-08T10:16:29.130Z"
+      responses:
+        '200':
+          description: >-
+            Responds *synchronously* and returns the Review object as it was stored in the DB. This will typically be the same as the posted object, with some slight modifications and additions. For example, some fields may be normalised (e.g. whitespaces removed), other fields may be added with default values.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      response:
+                        $ref: '#/components/schemas/ReviewResponse'
+                  
+        '400':
+          description: Bad request, this will be accompanied by a list of  validation errors.
+        '5XX':
+          description: Unexpected error on the server.
+        
   /search:
     get:
       tags:
@@ -1111,21 +1244,16 @@ components:
           items:
             type: string
 
+
     UserReviewResponse:
-      type: object
-      required:
-        - facet_counts
-        - response
-        - responseHeader
-      properties:
-        facet_counts:
-          $ref: '#/components/schemas/FacetCounts'
-        response:
-          $ref: '#/components/schemas/UReviewResponse'
-        responseHeader:
-          $ref: '#/components/schemas/ResponseHeader'
-          
-    UReviewResponse:
+      allOf:
+        - $ref: '#/components/schemas/Response'
+        - type: object
+          properties:
+            response:
+              $ref: '#/components/schemas/UReviewResponse'
+
+    ReviewResponse:
       type: object
       required:
       - docs
@@ -1135,12 +1263,22 @@ components:
         docs:
           type: array
           items:
-            $ref: '#/components/schemas/UserReview'
+            $ref: '#/components/schemas/Review'
         numFound:
           type: integer
         start:
           type: integer
 
+    UReviewResponse:
+      allOf:
+        - $ref: '#/components/schemas/ReviewResponse'
+        - type: object
+          properties:
+            docs:
+              type: array
+              items:
+                $ref: '#/components/schemas/UserReview'
+          
     CoinformUser:
       type: object
       required:
@@ -1214,7 +1352,51 @@ components:
         url:
           type: string
           example: http://coinform.eu/sentence?text=vaccines cause autism
-      
+
+    Review:
+      type: object
+      required:
+        - author
+        - text
+        - name
+        - reviewAspect 
+        - reviewRating
+        - itemReviewed
+        - dateCreated
+      properties:
+        context:
+          type: string
+          enum: ["http://schema.org", "http://coinform.eu"]
+        type:
+          type: string
+          enum: [Review]
+        url:
+          type: string
+          format: url
+          description: Required after insert. Serves as a unique identifier for this Review.
+          example: http://coinform.eu/dtrump/20200213T150605
+        author:
+          oneOf:
+            - $ref: '#/components/schemas/Organization'
+            - $ref: '#/components/schemas/Person'
+        text:
+          type: string
+          example: The Tweet/sentence/claim/article/credibility is wrong, because ..  
+        name:
+          type: string
+          description: a short label summarising this review
+          example: inaccurate
+        reviewAspect:
+          type: string
+          enum: [accuracy]
+        reviewRating:
+          $ref: '#/components/schemas/AccuracyRating'
+        itemReviewed:
+          $ref: '#/components/schemas/ItemRef'
+        dateCreated:
+          type: string
+          format: date-time
+          
     UserReview:
       type: object
       required:
@@ -1400,6 +1582,7 @@ components:
             List of claim credibility assessments for all the sentences occurring in the tweet. If the tweet does not contain sentences/claims, this will not be included in the response.
           items:
             $ref: '#/components/schemas/ClaimCredibilityPrediction'
+
         sentences_linked:
           type: array
           description: >-
@@ -1583,3 +1766,66 @@ components:
           example: 0.5
         domain_credibility:
           $ref: '#/components/schemas/CredibilityAssessment'
+    Thing:
+      type: object
+      description: >-
+        The most generic type of *identifiable* item.
+      properties:
+        context:
+          type: string
+          format: uri
+          description: A URL describing the context of this Thing
+        type:
+          type: string
+          description: >-
+            Name of the schema type, defined within the `context`, for this `Thing`
+        identifier:
+          type: string
+          description: >-
+            The identifier property represents any kind of identifier for any kind of Thing, such as ISBNs, GTIN codes, UUIDs etc. Schema.org provides dedicated properties for representing many of these, either as textual strings or as URL (URI) links. See background notes for more details. The combination of `context` and `identifier` should be sufficient to resolve this item.
+        url:
+          type: string
+          format: uri
+          description: >-
+            URL of the item. Navigating to this URL should return information about this item. Typically, the URL will be a canonical URL that encodes the `type` and the `identifier` for this item.
+        dateInserted:
+          type: string
+          format: datetime
+          description: >-
+            Records the insertion date of this item into the system. Only the system should set this value upon insertion of data into the DB. Users should not specify this value when submitting documents (users can use other properties like `dateCreated` for this purpose).
+
+            All data items recorded by the system **must** contain a value for this property, as it will be used to create queries which generate immutable resultsets for the database. Conversely, computed or derived data-items should not specify this property, since they have not really been inserted into the system.
+          example: 2020-03-05T13:02:42Z
+        sameAs:
+          type: array
+          description: >-
+            URL of a reference Web page that unambiguously indicates the item's identity. E.g. the URL of the item's Wikipedia page, Wikidata entry, or official website.
+          items:
+            type: string
+            format: uri
+        name:
+          type: string
+          description: >-
+            The canonical name of the item. See also `alternateName`. This name is typically not sufficient to identify the item, though. That's what the `identifier` and `url` are for.
+        description:
+          type: string
+          description: A description of the item
+        alternateName:
+          oneOf:
+            - type: string
+              description: An alias for the item. See `name` for its canonical name.
+            - type: array
+              description: Multiple aliases for the item. See `name` for its canonical name.
+              items:
+                type: string
+
+    Person:
+      allOf:
+        - $ref: "#/components/schemas/Thing"
+        - type: object
+          description: A person (alive, dead, undead, or fictional).
+    Organization:
+      allOf:
+        - $ref: "#/components/schemas/Thing"
+        - type: object
+          description: An organization such as a school, NGO, corporation, club, etc.
