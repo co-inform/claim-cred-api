@@ -160,7 +160,7 @@ paths:
                       name: Truly-media
                       url: "http://truly.media"
                   itemToReview:
-                    type: SocialMediaPost
+                    type: SocialMediaPosting
                     url: https://twitter.com/realDonaldTrump/status/1181172459325800448
       responses:
         '200':
@@ -218,10 +218,10 @@ paths:
                     type: Rating
                     ratingValue: inaccurate
                     reviewAspect: accuracy
-                    reviewExplanation: >-
+                    ratingExplanation: >-
                       The Tweet is inaccurate because reasons
                   itemReviewed:
-                    type: SocialMediaPost
+                    type: SocialMediaPosting
                     url: https://twitter.com/realDonaldTrump/status/1181172459325800448
                   dateCreated: "2020-05-08T10:16:29.130Z"
       responses:
