@@ -884,13 +884,80 @@ paths:
                   $ref: '#/components/schemas/ClaimCredibilityPrediction'
         '400':
           description: bad input parameter
-          
+  /log/plugin/action:
+    post:
+      tags:
+        - planned
+      summary: post a batch of plugin actions to be logged
+      operationId: logPluginAction
+      description: >-
+        Accepts a batch of plugin actions and stores them in the
+        database. Currently, no validation is performed on this
+        data. If you submit data that is not in accordance to the DB
+        schema, this action will fail.
+      requestBody:
+        description: List of log records to store
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/PluginActionRecord'
+      responses:
+        '200':
+          description: >-
+            Request accepted and values stored in the DB
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messsage:
+                    type: string
+                    example: '2 records added to the database'
+        '400':
+          description: Bad request. DB probably rejected one or more of the records
+        '5XX':
+          description: Unexpected error on the server
+  
 servers:
   - url: 'https://coinform.expertsystemcustomer.com/cc/api/v1'
     description: ESI's coinform endpoint (ask for permission to gain access)
 
 components:
   schemas:
+    PluginActionRecord:
+      type: object
+      required:
+        - user_id
+        - plugin_version
+        - log_time
+        - log_category
+        - log_action
+      properties:
+        user_id:
+          type: string
+          example: "CoinformUser-abc-efg"
+        plugin_version:
+          type: string
+          example: "3.2.0 DEV"
+        log_time:
+          type: string
+          format: date-time
+          example: "2020-04-04T20:33:30.465Z"
+        log_category:
+          type: string
+          example: "log_test"
+        related_item_url:
+          type: string
+          format: url
+        related_item_data:
+          type: string
+          example: "Label: Not Credible"
+        log_action:
+          type: string
+          example: 'Clicked on "Why can''t I see this?" button'
     Collection:
       type: object
       required:
