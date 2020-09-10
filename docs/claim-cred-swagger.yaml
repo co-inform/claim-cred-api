@@ -792,6 +792,40 @@ paths:
           description: Bad request. Not enough information to analyse tweets or bad callback URL.
         '5XX':
           description: Unexpected error on the server.
+
+  /tweet/accuracy-review:
+    get:
+      tags:
+        - planned
+      summary: Summary of accuracy reviews for a given tweet (and optional user)
+      operationId: getTweetAccuracyReview
+      parameters:
+        - in: query
+          name: tweet_id
+          description: >-
+            A twitter status-id the corresponding URL would be something like `http(s)://twitter.com/<user>/status/<tweet_id>`
+          example: 960194140876177408
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: user_id
+          description: >-
+            A Co-inform user UUID. When provided, it will return a
+            summary of the accuracy ratings for the tweet by this
+            user.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: summary of accuracy reviews for the tweet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TweetAccuracyReviewResponse'
+        '400':
+          description: bad input parameter
         
   /claim/search:
     get:
@@ -1525,6 +1559,193 @@ components:
           $ref: '#/components/schemas/Response'
         responseHeader:
           $ref: '#/components/schemas/ResponseHeader'
+
+    TweetAccuracyReviewResponse:
+      type: object
+      required:
+        - response
+        - responseHeader
+      properties:
+        response:
+          $ref: '#/components/schemas/CoinformTweetReviewSummary'
+        responseHeader:
+          $ref: '#/components/schemas/ResponseHeader'
+
+    CoinformTweetReviewSummary:
+      type: object
+      required:
+        - type
+        - tweet
+        - coinform_credibility_reviews
+      properties:
+        type:
+          type: string
+          example: CoinformTweetReviewSummary
+        title:
+          type: string
+          example: Summary of Accuracy and Credibility Reviews for a Tweet
+        description:
+          type: string
+        tweet:
+          type: object
+          properties:
+            id:
+              type: string
+              example: 	960194140876177408
+            urls:
+              type: object
+              description: URL of the tweets reviewed and their count
+              example:
+                https://twitter.com/citoyenneFrance/status/960194140876177408: 1
+        coinform_user_id:
+          type: string
+          format: uuid
+        user_accuracy_reviews:
+          allOf:
+            - $ref: '#/components/schemas/UserAccuracyReviewsSummary'
+            - type: object
+              description: >-
+                Provides a summary of (user provided) accuracy reviews for the `tweet`
+        coinform_credibility_reviews:
+          allOf:
+            - $ref: '#/components/schemas/CoinformCredibilityReviewsSummary'
+            - type: object
+              description: >-
+                Provides a summary of the (user provided)
+                (dis)agreements for (system provided) credibility
+                labels for the `tweet`
+                
+
+    UserAccuracyReviewsSummary:
+      type: object
+      description: >-
+        Provides a summary of accuracy reviews for some rated item
+      required:
+        - all_users
+      properties:
+        all_users:
+          type: object
+          description: Summary of ratings provided by all co-inform users
+          properties:
+            accuracy_labels:
+              $ref: '#/components/schemas/AccuracyLabelCounts'
+            total_count:
+              type: integer
+              description: >-
+                Total number of Accuracy Reviews (from all users)
+              example: 10
+            total_users:
+              type: integer
+              description: >-
+                Number of users who have rated the item(s)
+              example:
+                2
+        user:
+          type: object
+          description: Summary of ratings provided by the current user
+          properties:
+            accuracy_labels:
+              $ref: '#/components/schemas/AccuracyLabelCounts'
+            total_count:
+              type: integer
+              description: >-
+                Total number of Accuracy Reviews by this user
+            reviews:
+              type: array
+              description: list of User accuracy reviews for the item(s)
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+
+    AccuracyLabelCounts:
+      type: object
+      properties:
+        accurate:
+          description: How many `accurate` ratings 
+          type: integer
+        accurate_with_considerations:
+          description: How many `accurate_with_consideration_s` ratings 
+          type: integer
+        unsubstantiated:
+          description: How many `unsubstantiated` ratings 
+          type: integer
+        inaccurate_with_considerations:
+          description: How many `inaccurate_with_considerations` ratings 
+          type: integer
+        inaccurate:
+          description: How many `inaccurate` ratings 
+          type: integer
+        not_verifiable:
+          description: How many `not_verifiable` ratings 
+          type: integer
+
+    CoinformCredibilityReviewsSummary:
+      type: object
+      required:
+        - total_count
+        - (dis)agreement_feedback
+      properties:
+        total_count:
+          type: integer
+          description: >-
+            Total number of Credibility Reviews
+        (dis)agreement_feedback:
+          type: object
+          properties:
+            credibility_uncertain:
+              $ref: '#/components/schemas/AgreementFeedbackSummary'
+            credible:
+              $ref: '#/components/schemas/AgreementFeedbackSummary'
+            mostly_credible:
+              $ref: '#/components/schemas/AgreementFeedbackSummary'
+            not_credible:
+              $ref: '#/components/schemas/AgreementFeedbackSummary'
+            not_verifiable:
+              $ref: '#/components/schemas/AgreementFeedbackSummary'
+
+    AgreementFeedbackSummary:
+      type: object
+      description: >-
+        Summarises how many (dis)agreements (for a credibility label)
+        users have reported. If a current user is in scope, this also
+        reports a summary of the user's (dis)agreements.
+      required:
+        - total_agree
+        - total_disagree
+      properties:
+        total_agree:
+          type: integer
+          description: >-
+            Total number of user ratings agreeing with this credibility label
+          example: 2
+        total_disagree:
+          type: integer
+          description: >-
+            Total number of user ratings disagreeing with this credibility label
+          example: 5
+        user_feedback:
+          type: string
+          enum: [agree, disagree]
+          description: >-
+            Whether the current user (most recently) agreed or
+            disagreed with the credibility label
+        user_reviews:
+          type: array
+          description: >-
+            List of reviews by the user (dis)agreeing with the
+            label. You can use this to retrieve further details about
+            the specific reviews.
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+                format: url
+                example: http://coinform.eu/837a0f4f-0c20-42fa-b29c-68a03e5d46cd/accuracyreview/2020-09-08T20:40:28.964795Z
           
     URLCollectionResult:
       type: object
