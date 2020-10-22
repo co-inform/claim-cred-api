@@ -129,6 +129,104 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserReviewResponse'
+
+  /user/agg/accuracy-review:
+    get:
+      tags:
+        - planned
+      summary: GET aggregate information about an itemReviewed
+      operationId: getUserAggregateAccuracyReview
+      description: >-
+        Find how many users reviewed a specific item directly or
+        indirectly (by dis/agreeing with a system `CredibilityReview`)
+      parameters:
+        - in: query
+          name: itemReviewed.url
+          required: true
+          schema:
+            type: string
+            format: url
+          description: >-
+            The item that was rated by users either directly or indirectly
+          examples:
+            tweet:
+              value: "https://twitter.com/msara1973/status/889218085605040129"
+              summary: URL for a tweet
+            sentence:
+              value: "http://coinform.eu/sentence?text=vaccines cause cancer"
+              summary: URL for a sentence
+      responses:
+        '200':
+          description: >-
+            Returns an overview of users and their recent reviews for the itemReviewed
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - response
+                  - responseHeader
+                properties:
+                  response:
+                    $ref: '#/components/schemas/UserAccuracyReviewsByReviewedItem'
+                  responseHeader:
+                    $ref: '#/components/schemas/ResponseHeader'
+              examples:
+                tweet:
+                  summary: Users who reviewed a tweet
+                  value:
+                    responseHeader:
+                      QTime: 851
+                      params:
+                        itemReviewed.url: "https://twitter.com/msara1973/status/889218085605040129"
+                      status: 0
+                    response:
+                      itemReviewed.url: "https://twitter.com/msara1973/status/889218085605040129"
+                      numUsersWhoRequestedFactcheck: 1
+                      numUsersWhoReviewedItem: 3
+                      type: CoinformUserAccuracyReviewsByReviewedItem
+                      usersWhoRequestedFactcheck:
+                        - author.url: "http://coinform.eu/user/2094970a-2b0d-4f1a-999c-d0a41b3c677f"
+                          type: AuthorAndMostRecentReview
+                          mostRecentAccuracyReview:
+                            dateCreated: "2020-09-25T14:22:40.376Z"
+                            name: accurate
+                            reviewRating:
+                              ratingValue: accurate
+                            text: "it is true that Apollo 11 astronauts visited Ankara and Ataturks mausoleum in 1969. factcheckers link added"
+                      usersWhoReviewedItem:
+                        - author.url: "http://coinform.eu/user/2094970a-2b0d-4f1a-999c-d0a41b3c677f"
+                          type: AuthorAndMostRecentReview
+                          mostRecentAccuracyReview:
+                            dateCreated: "2020-09-25T14:22:40.376Z"
+                            name: accurate
+                            reviewRating:
+                              ratingValue: accurate
+                            text: "it is true that Apollo 11 astronauts visited Ankara and Ataturks mausoleum in 1969. factcheckers link added"
+                        - author.url: "http://coinform.eu/user/837a0f4f-0c20-42fa-b29c-68a03e5d46cd"
+                          type: AuthorAndMostRecentReview
+                          mostRecent(dis)agreeReview:
+                            type: CoinformUserReview
+                            dateCreated: "2020-09-23T06:35:03.909Z"
+                            itemReviewed:
+                              name: not_verifiable
+                              url: "https://api.coinform.eu/response/ebb4efa1c465201d3c6d8eb9445854150d88c4614e5ab67eda0ce866928a7d59/x"
+                            name: "inaccurate"
+                            reviewRating:
+                              ratingValue: inaccurate
+                        - author.url: "http://coinform.eu/user/2094970a-2b0d-4f1a-999c-d0a41b3c677f"
+                          type: AuthorAndMostRecentReview
+                          mostRecent(dis)agreeReview:
+                            type: CoinformUserReview
+                            dateCreated: "2020-09-25T14:16:58.166Z"
+                            itemReviewed: 
+                              name: not_verifiable
+                              url: "https://api.coinform.eu/response/ebb4efa1c465201d3c6d8eb9445854150d88c4614e5ab67eda0ce866928a7d59/x"
+                            name: inaccurate
+                            reviewRating:
+                              ratingValue: inaccurate
+                          
+
   /factchecker/recordRequest:
     post:
       tags:
@@ -1379,6 +1477,54 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/UserReview'
+
+    UserAccuracyReviewsByReviewedItem:
+      type: object
+      required:
+        - itemReviewed.url
+        - type
+        - numUsersWhoRequestedFactcheck
+        - numUsersWhoReviewedItem
+        - usersWhoRequestedReview
+        - usersWhoReviewedItem
+      properties:
+        type:
+          type: string
+          enum: [CoinformUserAccuracyReviewsByReviewedItem]
+        itemReviewed.url:
+          type: string
+          format: url
+          description: The URL for the item that was reviewed by users (directly or indirectly)
+        numUsersWhoRequestedFactcheck:
+          type: integer
+          description: Number of users who requested the item to be fact-checked professionally
+        numUsersWhoReviewedItem:
+          type: integer
+          description: Number of users who reviewed the item directly or indirectly
+        usersWhoRequestedReview:
+          $ref: '#/components/schemas/AuthorAndMostRecentReview'
+
+
+    AuthorAndMostRecentReview:
+      type: object
+      required:
+        - type
+        - author.url
+      properties:
+        type:
+          type: string
+          enum: [AuthorAndMostRecentReview]
+        author.url:
+          type: string
+          format: url
+          description: The URL for the author of a Review
+          example: "http://coinform.eu/user/2094970a-2b0d-4f1a-999c-d0a41b3c677f"
+        mostRecentAccuracyReview:
+          $ref: '#/components/schemas/UserReview'
+        mostRecent(dis)agreeReview:
+          $ref: '#/components/schemas/UserReview'
+        
+        
           
     CoinformUser:
       type: object
