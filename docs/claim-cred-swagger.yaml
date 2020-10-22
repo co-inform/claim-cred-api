@@ -5,7 +5,7 @@ info:
     of input statements by comparing them to claims/statements in a database of
     fact-checked and news articles from both credible and non-credible
     publishers.
-  version: "0.1.1"
+  version: "0.1.2"
   title: Claim Search and Credibility Prediction
   contact:
     email: rdenaux@expertsystem.com
@@ -181,51 +181,7 @@ paths:
                         itemReviewed.url: "https://twitter.com/msara1973/status/889218085605040129"
                       status: 0
                     response:
-                      itemReviewed.url: "https://twitter.com/msara1973/status/889218085605040129"
-                      numUsersWhoRequestedFactcheck: 1
-                      numUsersWhoReviewedItem: 3
-                      type: CoinformUserAccuracyReviewsByReviewedItem
-                      usersWhoRequestedFactcheck:
-                        - author.url: "http://coinform.eu/user/2094970a-2b0d-4f1a-999c-d0a41b3c677f"
-                          type: AuthorAndMostRecentReview
-                          mostRecentAccuracyReview:
-                            dateCreated: "2020-09-25T14:22:40.376Z"
-                            name: accurate
-                            reviewRating:
-                              ratingValue: accurate
-                            text: "it is true that Apollo 11 astronauts visited Ankara and Ataturks mausoleum in 1969. factcheckers link added"
-                      usersWhoReviewedItem:
-                        - author.url: "http://coinform.eu/user/2094970a-2b0d-4f1a-999c-d0a41b3c677f"
-                          type: AuthorAndMostRecentReview
-                          mostRecentAccuracyReview:
-                            dateCreated: "2020-09-25T14:22:40.376Z"
-                            name: accurate
-                            reviewRating:
-                              ratingValue: accurate
-                            text: "it is true that Apollo 11 astronauts visited Ankara and Ataturks mausoleum in 1969. factcheckers link added"
-                        - author.url: "http://coinform.eu/user/837a0f4f-0c20-42fa-b29c-68a03e5d46cd"
-                          type: AuthorAndMostRecentReview
-                          mostRecent(dis)agreeReview:
-                            type: CoinformUserReview
-                            dateCreated: "2020-09-23T06:35:03.909Z"
-                            itemReviewed:
-                              name: not_verifiable
-                              url: "https://api.coinform.eu/response/ebb4efa1c465201d3c6d8eb9445854150d88c4614e5ab67eda0ce866928a7d59/x"
-                            name: "inaccurate"
-                            reviewRating:
-                              ratingValue: inaccurate
-                        - author.url: "http://coinform.eu/user/2094970a-2b0d-4f1a-999c-d0a41b3c677f"
-                          type: AuthorAndMostRecentReview
-                          mostRecent(dis)agreeReview:
-                            type: CoinformUserReview
-                            dateCreated: "2020-09-25T14:16:58.166Z"
-                            itemReviewed: 
-                              name: not_verifiable
-                              url: "https://api.coinform.eu/response/ebb4efa1c465201d3c6d8eb9445854150d88c4614e5ab67eda0ce866928a7d59/x"
-                            name: inaccurate
-                            reviewRating:
-                              ratingValue: inaccurate
-                          
+                      $ref: '#/components/examples/UserAccRevsByReviewedTweet/value'
 
   /factchecker/recordRequest:
     post:
@@ -298,30 +254,7 @@ paths:
               $ref: '#/components/schemas/Review'
             examples:
               somaReview:
-                summary: Submit a SOMA review
-                value:
-                  context: http://schema.org
-                  type: Review
-                  url: http://truly.media/path/to/resource/for/this/review
-                  author:
-                    type: Organization
-                    url: http://truly.media
-                    name: Truly-media
-                  text: >-
-                    The Tweet is inaccurate because reasons
-                  name: inaccurate
-                  reviewAspect: accuracy
-                  reviewRating:
-                    context: http://schema.org
-                    type: Rating
-                    ratingValue: inaccurate
-                    reviewAspect: accuracy
-                    ratingExplanation: >-
-                      The Tweet is inaccurate because reasons
-                  itemReviewed:
-                    type: SocialMediaPosting
-                    url: https://twitter.com/realDonaldTrump/status/1181172459325800448
-                  dateCreated: "2020-05-08T10:16:29.130Z"
+                $ref: '#/components/examples/SomaReview01'
       responses:
         '200':
           description: >-
@@ -334,7 +267,28 @@ paths:
                   - type: object
                     properties:
                       response:
-                        $ref: '#/components/schemas/ReviewResponse'
+                        type: object
+                        properties:
+                          docs:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/UserReview'
+                          msg:
+                            type: string
+                          relatedUserReviews:
+                            $ref: '#/components/schemas/UserAccuracyReviewsByReviewedItem'
+                        
+              examples:
+                somaReview:
+                  summary: Response after storing a review
+                  value:
+                    response:
+                      docs:
+                        - $ref: '#/components/examples/SomaReview01/value'
+                      msg: Stored new review and closed 0 (of 0) active reviewRecord(s).
+                      relatedUserReviews:
+                        $ref: '#/components/examples/UserAccRevsByReviewedTweet/value'
+                  
                   
         '400':
           description: Bad request, this will be accompanied by a list of  validation errors.
@@ -1058,6 +1012,88 @@ servers:
     description: ESI's coinform endpoint (ask for permission to gain access)
 
 components:
+  examples:
+    SomaReview01:
+      summary: Submit a SOMA review
+      value:
+        context: http://schema.org
+        type: Review
+        url: http://truly.media/path/to/resource/for/this/review
+        author:
+          type: Organization
+          url: http://truly.media
+          name: Truly-media
+        text: >-
+          The Tweet is inaccurate because reasons
+          name: inaccurate
+        reviewAspect: accuracy
+        reviewRating:
+          context: http://schema.org
+          type: Rating
+          ratingValue: inaccurate
+          reviewAspect: accuracy
+          ratingExplanation: >-
+            The Tweet is inaccurate because reasons
+        itemReviewed:
+          type: SocialMediaPosting
+          url: https://twitter.com/realDonaldTrump/status/1181172459325800448
+        dateCreated: "2020-05-08T10:16:29.130Z"
+
+    AuthorAndRecentAccReview:
+      summary: an author with a recent accuracy review
+      value:
+        author.url: "http://coinform.eu/user/2094970a-2b0d-4f1a-999c-d0a41b3c677f"
+        type: AuthorAndMostRecentReview
+        mostRecentAccuracyReview:
+          dateCreated: "2020-09-25T14:22:40.376Z"
+          name: accurate
+          reviewRating:
+            ratingValue: accurate
+          text: "it is true that Apollo 11 astronauts visited Ankara and Ataturks mausoleum in 1969. factcheckers link added"
+    AuthorAndRecentDisagreeReview01:
+      summary: an author with a recent disagreement review
+      value:
+        author.url: "http://coinform.eu/user/837a0f4f-0c20-42fa-b29c-68a03e5d46cd"
+        type: AuthorAndMostRecentReview
+        mostRecent(dis)agreeReview:
+          type: CoinformUserReview
+          dateCreated: "2020-09-23T06:35:03.909Z"
+          itemReviewed:
+            name: not_verifiable
+            url: "https://api.coinform.eu/response/ebb4efa1c465201d3c6d8eb9445854150d88c4614e5ab67eda0ce866928a7d59/x"
+          name: "inaccurate"
+          reviewRating:
+            ratingValue: inaccurate
+        
+    AuthorAndRecentDisagreeReview02:
+      summary: an author with a recent disagreement review
+      value:
+        author.url: "http://coinform.eu/user/2094970a-2b0d-4f1a-999c-d0a41b3c677f"
+        type: AuthorAndMostRecentReview
+        mostRecent(dis)agreeReview:
+          type: CoinformUserReview
+          dateCreated: "2020-09-25T14:16:58.166Z"
+          itemReviewed: 
+            name: not_verifiable
+            url: "https://api.coinform.eu/response/ebb4efa1c465201d3c6d8eb9445854150d88c4614e5ab67eda0ce866928a7d59/x"
+          name: inaccurate
+          reviewRating:
+            ratingValue: inaccurate
+          
+    UserAccRevsByReviewedTweet:
+      summary: Users who reviewed a tweet
+      value:
+        type: CoinformUserAccuracyReviewsByReviewedItem
+        itemReviewed.url: "https://twitter.com/msara1973/status/889218085605040129"
+        numUsersWhoRequestedFactcheck: 1
+        numUsersWhoReviewedItem: 3
+        usersWhoRequestedFactcheck:
+          - $ref: '#/components/examples/AuthorAndRecentAccReview/value'
+        usersWhoReviewedItem:
+          - $ref: '#/components/examples/AuthorAndRecentAccReview/value'
+          - $ref: '#/components/examples/AuthorAndRecentDisagreeReview01/value'
+          - $ref: '#/components/examples/AuthorAndRecentDisagreeReview02/value'
+
   schemas:
     PluginActionRecord:
       type: object
